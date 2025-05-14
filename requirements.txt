@@ -1,1 +1,9 @@
 banidb
+fastapi 
+uvicorn 
+scikit-learn 
+pandas 
+numpy 
+motor 
+nltk 
+indic-nlp-library
