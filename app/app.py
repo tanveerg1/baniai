@@ -1,10 +1,11 @@
 import os
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+import datetime
 import banidb
-from .database import lifespan
-from .nlp import process_punjabi, process_english, detect_intent
-from .recommender import init_recommender, retrain_recommender
+from app.database import lifespan
+from app.nlp import process_punjabi, process_english, detect_intent
+from app.recommender import init_recommender, retrain_recommender
 
 app = FastAPI(lifespan=lifespan)
 recommender = None
@@ -109,6 +110,6 @@ async def like_shabad(shabad_id: int):
     await retrain_recommender(app.mongodb, recommender)
     return {"message": f"Shabad {shabad_id} liked"}
 
-if __name__ == '__main__':
-    port = int(os.getenv('PORT', 4000)) 
-    app.run(host='0.0.0.0', port=port, debug=True)
+# if __name__ == '__main__':
+#     port = int(os.getenv('PORT', 4000)) 
+#     app.run(host='0.0.0.0', port=port, debug=True)
