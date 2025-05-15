@@ -2,7 +2,9 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
+import banidb
 import pandas as pd
+import datetime
 
 async def load_shabads(mongodb):
     shabads = await mongodb["shabads"].find().to_list(length=1000)
@@ -44,3 +46,46 @@ async def retrain_recommender(mongodb, recommender):
             weights[idx[0]] += count * 0.2
     weighted_features = recommender.features * weights[:, None]
     recommender.features = weighted_features
+
+async def cache_shabad(shabad_id, mongodb):
+    shabad = banidb.shabad(shabad_id)
+    await mongodb["shabads"].update_one(
+        {"shabad_id": shabad["shabadInfo"]["shabadId"]},
+        {"$set": {
+            "shabad_id": shabad["shabadInfo"]["shabadId"],
+            "text": " ".join([line["line"]["gurmukhi"]["unicode"] for line in shabad["verses"]]),
+            "translation": " ".join([line["line"]["translation"]["english"]["default"] for line in shabad["verses"]]),
+            "raag": shabad["shabadInfo"]["raag"]["english"],
+            "writer": shabad["shabadInfo"]["writer"]["english"]
+        }},
+        upsert=True
+    )
+
+async def get_random_shabad(mongodb):
+    shabad = banidb.random()
+    await cache_shabad(shabad["shabadInfo"]["shabadId"], mongodb)
+    return shabad
+
+async def search_shabads(query, language, mongodb):
+    if language == "pa":
+        results = banidb.search({"search_term": query, "search_type": 3})
+    else:
+        results = banidb.search({"search_term": query, "search_type": 3})
+    # Cache results in MongoDB
+    for result in results["results"]:
+        await cache_shabad(result["shabadInfo"]["shabadId"], mongodb)
+    return results["results"]
+
+async def get_filters():
+    return {
+        "raags": banidb.raags(),
+        "writers": banidb.writers(),
+        "sources": banidb.sources()
+    }
+
+async def log_interaction(shabad_id, interaction_type, mongodb):
+    await mongodb["interactions"].insert_one({
+        "shabad_id": shabad_id,
+        "interaction_type": interaction_type,
+        "timestamp": datetime.datetime.utcnow()
+    })

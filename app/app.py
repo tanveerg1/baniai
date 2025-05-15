@@ -10,6 +10,7 @@ from app.recommender import init_recommender, retrain_recommender
 app = FastAPI(lifespan=lifespan)
 recommender = None
 
+# Cache shabads
 async def cache_shabads(start_id=1, end_id=100):
     shabads_collection = app.mongodb["shabads"]
     for i in range(start_id, end_id + 1):
@@ -31,6 +32,57 @@ async def cache_shabads(start_id=1, end_id=100):
         except:
             continue
 
+# Cache angs
+async def cache_ang(ang, source="G"):
+    angs_collection = app.mongodb["angs"]
+    try:
+        ang_data = banidb.ang(ang, source)
+        await angs_collection.update_one(
+            {"ang": ang, "source": source},
+            {
+                "$set": {
+                    "ang": ang_data["pageNo"],
+                    "source": ang_data["source"]["id"],
+                    "verses": [
+                        {
+                            "line_id": verse["line"]["lineId"],
+                            "gurmukhi": verse["line"]["gurmukhi"]["unicode"],
+                            "translation": verse["line"]["translation"]["english"]["default"],
+                            "page_no": verse["line"]["pageNo"]
+                        } for verse in ang_data["verses"]
+                    ]
+                }
+            },
+            upsert=True
+        )
+        return ang_data
+    except:
+        return None
+
+# Cache metadata
+async def cache_metadata():
+    metadata_collection = app.mongodb["metadata"]
+    try:
+        raags = banidb.raags()
+        writers = banidb.writers()
+        sources = banidb.sources()
+        await metadata_collection.update_one(
+            {"type": "raags"},
+            {"$set": {"type": "raags", "data": raags}},
+            upsert=True
+        )
+        await metadata_collection.update_one(
+            {"type": "writers"},
+            {"$set": {"type": "writers", "data": writers}},
+            upsert=True
+        )
+        await metadata_collection.update_one(
+            {"type": "sources"},
+            {"$set": {"type": "sources", "data": sources}},
+            upsert=True
+        )
+    except:
+        pass
 
 class Query(BaseModel):
     text: str
@@ -45,6 +97,12 @@ async def startup_event():
     global recommender
     recommender = await init_recommender(app.mongodb)
     await cache_shabads(1, 100)
+    await cache_metadata()
+    # Create indexes for performance
+    await app.mongodb["shabads"].create_index("shabad_id", unique=True)
+    await app.mongodb["angs"].create_index([("ang", 1), ("source", 1)], unique=True)
+    await app.mongodb["interactions"].create_index("shabad_id")
+    await app.mongodb["metadata"].create_index("type", unique=True)
 
 @app.post("/query")
 async def process_query(query: Query):
@@ -65,7 +123,9 @@ async def process_query(query: Query):
                 return results
             # Fallback to banidb
             results = banidb.search({"search_term": query.text})
-            return results
+            for result in results.get("results", []):
+                await cache_shabads(result["shabadInfo"]["shabadId"], result["shabadInfo"]["shabadId"])
+            return results.get("results", [])
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
@@ -95,6 +155,7 @@ async def get_shabad(shabad_id: int):
         return shabad
     try:
         shabad = banidb.shabad(shabad_id)
+        await cache_shabads(shabad_id, shabad_id)
         await app.mongodb["interactions"].insert_one({
             "shabad_id": shabad_id,
             "interaction_type": "view",
@@ -113,6 +174,62 @@ async def like_shabad(shabad_id: int):
     })
     await retrain_recommender(app.mongodb, recommender)
     return {"message": f"Shabad {shabad_id} liked"}
+
+@app.get("/ang/{ang}")
+async def get_ang(ang: int, source: str = "G"):
+    angs_collection = app.mongodb["angs"]
+    ang_data = await angs_collection.find_one({"ang": ang, "source": source})
+    if ang_data:
+        await app.mongodb["interactions"].insert_one({
+            "ang": ang,
+            "source": source,
+            "interaction_type": "view_ang",
+            "timestamp": datetime.datetime.utcnow()
+        })
+        return ang_data
+    try:
+        ang_data = await cache_ang(ang, source)
+        if not ang_data:
+            raise Exception("Failed to fetch ang")
+        await app.mongodb["interactions"].insert_one({
+            "ang": ang,
+            "source": source,
+            "interaction_type": "view_ang",
+            "timestamp": datetime.datetime.utcnow()
+        })
+        return ang_data
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@app.get("/random")
+async def get_random_shabad(source: str = "G"):
+    try:
+        shabad = banidb.random(source)
+        shabad_id = shabad["shabadInfo"]["shabadId"]
+        await cache_shabads(shabad_id, shabad_id)
+        await app.mongodb["interactions"].insert_one({
+            "shabad_id": shabad_id,
+            "interaction_type": "view",
+            "timestamp": datetime.datetime.utcnow()
+        })
+        return shabad
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/metadata")
+async def get_metadata():
+    metadata_collection = app.mongodb["metadata"]
+    try:
+        raags = await metadata_collection.find_one({"type": "raags"})
+        writers = await metadata_collection.find_one({"type": "writers"})
+        sources = await metadata_collection.find_one({"type": "sources"})
+        return {
+            "raags": raags["data"] if raags else banidb.raags(),
+            "writers": writers["data"] if writers else banidb.writers(),
+            "sources": sources["data"] if sources else banidb.sources()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # if __name__ == '__main__':
 #     port = int(os.getenv('PORT', 4000)) 
