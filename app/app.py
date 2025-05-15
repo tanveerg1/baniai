@@ -36,6 +36,10 @@ class Query(BaseModel):
     text: str
     language: str  # "pa" or "en"
 
+@app.get("/")
+async def root():
+    return {"message": "Stock AI API is running!"}
+
 @app.on_event("startup")
 async def startup_event():
     global recommender
