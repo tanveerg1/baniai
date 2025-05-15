@@ -108,7 +108,8 @@ async def startup_event():
 async def process_query(query: Query):
     tokens = process_punjabi(query.text) if query.language == "pa" else process_english(query.text)
     intent = detect_intent(tokens, language=query.language)
-
+    
+    print(f"Intent: {intent}")
     shabads_collection = app.mongodb["shabads"]
     if intent == "search":
         try:
@@ -119,6 +120,7 @@ async def process_query(query: Query):
                     {"translation": {"$regex": "|".join(tokens), "$options": "i"}}
                 ]}
             ).to_list(length=10)
+            print(f"MongoDB results: {results}")
             if results:
                 return results
             # Fallback to banidb
