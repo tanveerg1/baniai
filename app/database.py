@@ -14,7 +14,7 @@ MONGODB_URI = f"mongodb+srv://{db_username}:{db_password}@{cluster_name}.mongodb
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.mongodb_client = AsyncIOMotorClient(MONGODB_URI)
-    app.mongodb = app.mongodb_client["baniaidb"]
+    app.mongodb = app.mongodb_client[app_name]
     print("MongoDB connected")
     yield
     app.mongodb_client.close()

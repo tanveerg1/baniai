@@ -33,7 +33,6 @@ async def cache_shabads(start_id=1, end_id=100):
             continue
 
 # Cache banis
-# Cache banis
 async def cache_bani(bani_id):
     banis_collection = app.mongodb["banis"]
     try:
