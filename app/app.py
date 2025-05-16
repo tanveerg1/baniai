@@ -37,6 +37,7 @@ async def cache_bani(bani_id):
     banis_collection = app.mongodb["banis"]
     try:
         bani_data = banidb.bani(bani_id)
+        print(f"Caching bani: {bani_data['info']['bani_id']}")
         await banis_collection.update_one(
             {"bani_id": bani_data["info"]["bani_id"]},
             {
