@@ -237,7 +237,7 @@ async def get_metadata():
 @app.get("/hukamnama")
 async def get_hukamnama():
     try:
-        now = datetime.datetime,now(datetime.timezone.utc)
+        now = datetime.datetime.now(datetime.timezone.utc)
         hukamnama = banidb.hukamnama(now.year, now.month, now.day)
         return hukamnama
     except Exception as e:
