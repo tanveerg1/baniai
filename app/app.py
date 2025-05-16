@@ -233,6 +233,17 @@ async def get_metadata():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.get("/hukamnama")
+async def get_hukamnama():
+    try:
+        now = datetime.datetime,now(datetime.timezone.utc)
+        data = banidb.hukamnama(now.year, now.month, now.day)
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # if __name__ == '__main__':
 #     port = int(os.getenv('PORT', 4000)) 
 #     app.run(host='0.0.0.0', port=port, debug=True)
