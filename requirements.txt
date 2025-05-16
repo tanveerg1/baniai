@@ -7,3 +7,5 @@ numpy
 motor 
 nltk 
 indic-nlp-library
+motor>=3.3.1
+pymongo>=4.3.3
