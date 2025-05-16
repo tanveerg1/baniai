@@ -10,6 +10,12 @@ from app.recommender import init_recommender, retrain_recommender
 app = FastAPI(lifespan=lifespan)
 recommender = None
 
+# Add this helper function anywhere in your app.py
+def fix_mongo_id(document):
+    if document and "_id" in document:
+        document["_id"] = str(document["_id"])
+    return document
+
 # Cache shabads
 async def cache_shabads(start_id=1, end_id=100):
     shabads_collection = app.mongodb["shabads"]
@@ -37,7 +43,6 @@ async def cache_bani(bani_id):
     banis_collection = app.mongodb["banis"]
     try:
         bani_data = banidb.bani(bani_id)
-        print(f"Caching bani: {bani_data['info']['bani_id']}")
         await banis_collection.update_one(
             {"bani_id": bani_data["info"]["bani_id"]},
             {
@@ -273,7 +278,7 @@ async def get_bani(bani_id: int):
             "interaction_type": "view_bani",
             "timestamp": datetime.datetime.utcnow()
         })
-        return bani
+        return fix_mongo_id(bani)
     try:
         bani_data = await cache_bani(bani_id)
         if not bani_data:
