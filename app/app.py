@@ -90,7 +90,7 @@ class Query(BaseModel):
 
 @app.get("/")
 async def root():
-    return {"message": "Bani AI API is running!"}
+    return {"message": "Bani AI API is running!!"}
 
 @app.on_event("startup")
 async def startup_event():
