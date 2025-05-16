@@ -32,6 +32,36 @@ async def cache_shabads(start_id=1, end_id=100):
         except:
             continue
 
+# Cache banis
+# Cache banis
+async def cache_bani(bani_id):
+    banis_collection = app.mongodb["banis"]
+    try:
+        bani_data = banidb.bani(bani_id)
+        await banis_collection.update_one(
+            {"bani_id": bani_data["info"]["bani_id"]},
+            {
+                "$set": {
+                    "bani_id": bani_data["info"]["bani_id"],
+                    "info": bani_data["info"],
+                    "raag": bani_data["raag"],
+                    "source": bani_data["source"],
+                    "verses": [
+                        {
+                            "verse_id": verse["verse_id"],
+                            "verse": verse["verse"],
+                            "steek": verse["steek"],
+                            "translit": verse["translit"]
+                        } for verse in bani_data["verses"]
+                    ]
+                }
+            },
+            upsert=True
+        )
+        return bani_data
+    except:
+        return None
+    
 # Cache angs
 async def cache_ang(ang, source="G"):
     angs_collection = app.mongodb["angs"]
@@ -233,7 +263,30 @@ async def get_metadata():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
+@app.get("/bani/{bani_id}")
+async def get_bani(bani_id: int):
+    banis_collection = app.mongodb["banis"]
+    bani = await banis_collection.find_one({"bani_id": bani_id})
+    if bani:
+        await app.mongodb["interactions"].insert_one({
+            "bani_id": bani_id,
+            "interaction_type": "view_bani",
+            "timestamp": datetime.datetime.utcnow()
+        })
+        return bani
+    try:
+        bani_data = await cache_bani(bani_id)
+        if not bani_data:
+            raise Exception("Failed to fetch bani")
+        await app.mongodb["interactions"].insert_one({
+            "bani_id": bani_id,
+            "interaction_type": "view_bani",
+            "timestamp": datetime.datetime.utcnow()
+        })
+        return bani_data
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    
 @app.get("/hukamnama")
 async def get_hukamnama():
     try:
