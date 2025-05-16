@@ -238,8 +238,8 @@ async def get_metadata():
 async def get_hukamnama():
     try:
         now = datetime.datetime,now(datetime.timezone.utc)
-        data = banidb.hukamnama(now.year, now.month, now.day)
-        return data
+        hukamnama = banidb.hukamnama(now.year, now.month, now.day)
+        return hukamnama
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
